@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#ffffff">
+<title>割り勘メモ</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  :root {
+    --bg: #F5F3EE;
+    --white: #fff;
+    --border: #E8E4DC;
+    --border2: #E0D9D0;
+    --text: #1a1a1a;
+    --muted: #A89B8A;
+    --muted2: #C4B9AC;
+    --muted3: #AAA;
+    --teal: #2BA8A0;
+    --red: #E05C5C;
+    --amber: #D4820A;
+    --radius: 12px;
+    --shadow: 0 1px 4px rgba(0,0,0,0.07);
+    --shadow2: 0 2px 12px rgba(0,0,0,0.09);
+  }
+  html, body { height: 100%; background: var(--bg); font-family: 'Hiragino Kaku Gothic ProN','BIZ UDPGothic','Noto Sans JP',sans-serif; color: var(--text); }
+
+  /* Header */
+  #header {
+    background: var(--white);
+    padding: env(safe-area-inset-top, 0) 0 0;
+    border-bottom: 1px solid var(--border);
+    box-shadow: var(--shadow2);
+    position: sticky; top: 0; z-index: 100;
+  }
+  #header-inner { padding: 18px 18px 14px; }
+  #header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  #header-label { font-size: 9px; letter-spacing: 4px; color: var(--muted); text-transform: uppercase; }
+  #header-title { font-size: 22px; font-weight: 800; color: var(--text); letter-spacing: -0.5px; }
+  #save-status { font-size: 11px; color: transparent; transition: color 0.3s; }
+  #save-status.saving { color: var(--amber); }
+  #save-status.saved { color: var(--teal); }
+  #stats { display: flex; gap: 10px; }
+  .stat-card { flex: 1; background: var(--bg); border-radius: 10px; padding: 8px 12px; border: 1px solid var(--border); }
+  .stat-label { font-size: 10px; color: var(--muted); margin-bottom: 2px; }
+  .stat-value { font-size: 17px; font-weight: 800; color: var(--text); }
+
+  /* Content */
+  #content { padding: 0 16px 100px; max-width: 500px; margin: 0 auto; }
+  .section { margin-top: 22px; }
+  .section-label {
+    font-size: 9px; letter-spacing: 3px; color: var(--muted);
+    text-transform: uppercase; margin-bottom: 9px; font-weight: 700;
+  }
+
+  /* Tags / Pills */
+  .tags { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 10px; }
+  .member-tag {
+    display: inline-flex; align-items: center; gap: 6px;
+    border-radius: 20px; padding: 6px 12px; font-size: 13px;
+    border: 1.5px solid; cursor: default;
+  }
+  .member-dot { width: 7px; height: 7px; border-radius: 50%; }
+  .remove-btn { background: none; border: none; color: #ccc; cursor: pointer; font-size: 15px; line-height: 1; padding: 0 0 0 2px; }
+
+  /* Input row */
+  .input-row { display: flex; gap: 8px; }
+  input[type=text], input[type=number] {
+    background: #F9F7F4; border: 1.5px solid var(--border2);
+    border-radius: 10px; padding: 12px 14px; color: var(--text);
+    font-size: 16px; /* prevents zoom on iOS */ outline: none; width: 100%;
+    font-family: inherit;
+    -webkit-appearance: none;
+  }
+  input[type=text]::placeholder, input[type=number]::placeholder { color: var(--muted2); }
+  input[type=number] { -moz-appearance: textfield; }
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+  /* Buttons */
+  .btn {
+    padding: 12px 16px; border-radius: 10px; cursor: pointer;
+    font-size: 14px; font-weight: 700; border: 1.5px solid;
+    white-space: nowrap; font-family: inherit;
+    transition: opacity 0.15s, transform 0.1s;
+    -webkit-appearance: none;
+  }
+  .btn:active { opacity: 0.75; transform: scale(0.97); }
+  .btn-teal { background: #2BA8A018; border-color: #2BA8A066; color: var(--teal); }
+  .btn-amber { background: #D4820A18; border-color: #D4820A66; color: var(--amber); }
+  .btn-gray { background: #aaa18; border-color: #aaa66; color: var(--muted3); }
+  .btn-full { width: 100%; }
+  .btn-row { display: flex; gap: 8px; }
+
+  /* Tag toggle */
+  .tag-btn {
+    padding: 8px 14px; border-radius: 20px; cursor: pointer;
+    font-size: 13px; border: 1.5px solid #E0D9D0;
+    background: #F9F7F4; color: #888; font-weight: 400;
+    transition: all 0.15s; font-family: inherit;
+    -webkit-appearance: none;
+  }
+  .tag-btn:active { transform: scale(0.95); }
+
+  /* Dashed add button */
+  .add-dashed {
+    width: 100%; padding: 14px; background: var(--white);
+    border: 1.5px dashed #D4CDC4; border-radius: 12px;
+    color: var(--muted3); cursor: pointer; font-size: 14px;
+    font-family: inherit;
+    transition: background 0.15s;
+  }
+  .add-dashed:active { background: #f0ede8; }
+
+  /* Card */
+  .card {
+    background: var(--white); border-radius: 12px; padding: 13px 14px;
+    margin-bottom: 8px; box-shadow: var(--shadow); border: 1px solid #EDE9E2;
+  }
+  .expense-card { display: flex; align-items: flex-start; gap: 8px; border-left: 3px solid; }
+  .expense-card-body { flex: 1; min-width: 0; }
+  .expense-title { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .expense-amount { font-size: 15px; font-weight: 800; }
+  .expense-desc { font-size: 13px; color: #888; }
+  .expense-meta { font-size: 11px; color: var(--muted3); margin-top: 3px; }
+  .expense-per { color: var(--muted2); }
+  .icon-btn { background: none; border: none; color: #ccc; cursor: pointer; font-size: 18px; padding: 0; flex-shrink: 0; line-height: 1; }
+
+  /* Form card */
+  .form-card {
+    background: var(--white); border-radius: 14px; padding: 16px;
+    margin-top: 6px; border: 1px solid var(--border); box-shadow: var(--shadow2);
+  }
+  .form-title { font-size: 11px; color: var(--muted); margin-bottom: 12px; font-weight: 700; letter-spacing: 1px; }
+  .form-field { margin-bottom: 12px; }
+
+  /* Preview */
+  .preview-box {
+    background: var(--bg); border-radius: 8px; padding: 9px 13px;
+    font-size: 12px; color: var(--muted); margin-bottom: 12px; border: 1px solid var(--border);
+  }
+
+  /* Group card */
+  .group-card { display: flex; align-items: center; gap: 8px; }
+  .group-body { flex: 1; min-width: 0; }
+  .group-name { font-size: 14px; font-weight: 800; color: var(--text); margin-bottom: 4px; }
+  .group-members-row { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
+  .mini-tag { display: inline-flex; align-items: center; gap: 3px; border-radius: 12px; padding: 3px 9px; border: 1px solid; }
+  .mini-dot { width: 5px; height: 5px; border-radius: 50%; }
+  .group-balance { font-size: 12px; color: var(--muted3); }
+
+  /* Settlement */
+  .balance-list { background: var(--white); border-radius: 12px; padding: 4px 14px; box-shadow: var(--shadow); border: 1px solid #EDE9E2; margin-bottom: 14px; }
+  .balance-row { display: flex; align-items: center; gap: 9px; padding: 11px 0; border-bottom: 1px solid var(--bg); }
+  .balance-row:last-child { border-bottom: none; }
+  .balance-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .balance-name { flex: 1; font-size: 13px; }
+  .balance-amount { font-size: 13px; font-weight: 800; }
+  .balance-label { font-size: 11px; color: var(--muted2); min-width: 44px; text-align: right; }
+
+  .txn-label { font-size: 9px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; font-weight: 700; }
+  .txn-card { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .txn-from { font-size: 13px; font-weight: 800; }
+  .txn-arrow { color: var(--muted2); font-size: 14px; }
+  .txn-to { font-size: 13px; font-weight: 800; }
+  .txn-group { font-size: 11px; color: var(--amber); margin-left: 2px; }
+  .txn-amount { margin-left: auto; font-weight: 800; font-size: 15px; }
+
+  .all-settled { text-align: center; color: var(--teal); font-size: 14px; font-weight: 700; padding: 12px 0; }
+
+  .in-group { opacity: 0.4; }
+  .group-tag { font-size: 10px; color: var(--muted2); margin-left: 4px; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div id="header-inner">
+    <div id="header-top">
+      <div>
+        <div id="header-label">Split</div>
+        <div id="header-title">割り勘メモ</div>
+      </div>
+      <div id="save-status">✓ 保存済み</div>
+    </div>
+    <div id="stats">
+      <div class="stat-card"><div class="stat-label">合計支出</div><div class="stat-value" id="stat-total">¥0</div></div>
+      <div class="stat-card"><div class="stat-label">メンバー</div><div class="stat-value" id="stat-members">0人</div></div>
+    </div>
+  </div>
+</div>
+
+<div id="content">
+  <!-- Members -->
+  <div class="section">
+    <div class="section-label">メンバー</div>
+    <div class="tags" id="member-tags"></div>
+    <div class="input-row">
+      <input type="text" id="new-member" placeholder="名前を入力..." maxlength="20">
+      <button class="btn btn-teal" onclick="addMember()">追加</button>
+    </div>
+  </div>
+
+  <!-- Expenses -->
+  <div class="section">
+    <div class="section-label" id="expenses-label">支出一覧 (0件)</div>
+    <div id="expense-list"></div>
+    <div id="expense-add-area">
+      <button class="add-dashed" onclick="openExpenseForm()">＋ 支出を追加</button>
+    </div>
+  </div>
+
+  <!-- Groups -->
+  <div class="section">
+    <div class="section-label">グループ精算 <span style="font-size:9px;color:#C4B9AC;">（夫婦・カップルなど）</span></div>
+    <div id="group-list"></div>
+    <div id="group-add-area">
+      <button class="add-dashed" onclick="openGroupForm()">＋ グループを追加</button>
+    </div>
+  </div>
+
+  <!-- Settlement -->
+  <div class="section" id="settlement-section" style="display:none;">
+    <div class="section-label">精算結果</div>
+    <div class="balance-list" id="balance-list"></div>
+    <div id="txn-section"></div>
+  </div>
+</div>
+
+<script>
+const COLORS = ["#E05C5C","#2BA8A0","#3A8CC4","#4A9E6E","#D4820A","#8B5CF6","#0891B2","#B45309"];
+const STORE_KEY = "warikan-data-v2";
+
+let state = {
+  members: ["キー", "友達A"],
+  expenses: [],
+  groups: []
+};
+
+// -- Storage --
+function loadData() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) {
+      const d = JSON.parse(raw);
+      if (d.members) state.members = d.members;
+      if (d.expenses) state.expenses = d.expenses;
+      if (d.groups) state.groups = d.groups;
+    }
+  } catch(e) {}
+}
+
+let saveTimer = null;
+function saveData() {
+  const el = document.getElementById('save-status');
+  el.textContent = '保存中…'; el.className = 'saving';
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch(e) {}
+    el.textContent = '✓ 保存済み'; el.className = 'saved';
+    setTimeout(() => { el.textContent = '✓ 保存済み'; el.className = ''; }, 2000);
+  }, 500);
+}
+
+// -- Colors --
+function col(name) { return COLORS[state.members.indexOf(name) % COLORS.length]; }
+
+// -- Compute --
+function compute() {
+  const bal = {};
+  state.members.forEach(m => bal[m] = 0);
+  state.expenses.forEach(e => {
+    const sh = e.amount / e.targets.length;
+    e.targets.forEach(t => { bal[t] = (bal[t]||0) - sh; });
+    bal[e.payer] = (bal[e.payer]||0) + e.amount;
+  });
+
+  const merged = {...bal};
+  state.groups.forEach(g => {
+    const tot = g.members.reduce((s,m) => s + (merged[m]||0), 0);
+    g.members.forEach(m => { merged[m] = 0; });
+    merged[g.members[0]] = tot;
+  });
+
+  const neg = Object.entries(merged).filter(([,v])=>v<-0.5).map(([k,v])=>({n:k,v})).sort((a,b)=>a.v-b.v);
+  const pos = Object.entries(merged).filter(([,v])=>v>0.5).map(([k,v])=>({n:k,v})).sort((a,b)=>b.v-a.v);
+  const txns = [];
+  let i=0, j=0;
+  while(i<neg.length && j<pos.length) {
+    const p = Math.min(-neg[i].v, pos[j].v);
+    if(p>0.5) txns.push({from:neg[i].n, to:pos[j].n, amt:Math.round(p)});
+    neg[i].v+=p; pos[j].v-=p;
+    if(Math.abs(neg[i].v)<0.5)i++;
+    if(Math.abs(pos[j].v)<0.5)j++;
+  }
+  return { balance: bal, txns };
+}
+
+// -- Render --
+function render() {
+  const { balance, txns } = compute();
+  const total = state.expenses.reduce((s,e)=>s+e.amount, 0);
+  const grouped = new Set(state.groups.flatMap(g=>g.members));
+
+  document.getElementById('stat-total').textContent = '¥' + total.toLocaleString();
+  document.getElementById('stat-members').textContent = state.members.length + '人';
+  document.getElementById('expenses-label').textContent = `支出一覧 (${state.expenses.length}件)`;
+
+  // Members
+  const mt = document.getElementById('member-tags');
+  mt.innerHTML = state.members.map((m,i) => {
+    const c = col(m);
+    return `<div class="member-tag" style="background:${c}14;border-color:${c}55;">
+      <div class="member-dot" style="background:${c}"></div>
+      <span>${esc(m)}</span>
+      ${state.members.length>2 ? `<button class="remove-btn" onclick="removeMember(${i})">×</button>` : ''}
+    </div>`;
+  }).join('');
+
+  // Expenses
+  const el = document.getElementById('expense-list');
+  el.innerHTML = state.expenses.length === 0
+    ? `<div style="text-align:center;color:#C4B9AC;padding:18px 0;font-size:13px;">まだ支出がありません</div>`
+    : state.expenses.map(e => {
+      const c = col(e.payer);
+      const perPerson = Math.round(e.amount / e.targets.length);
+      return `<div class="card expense-card" style="border-left-color:${c}">
+        <div class="expense-card-body">
+          <div class="expense-title">
+            <span class="expense-amount">¥${e.amount.toLocaleString()}</span>
+            <span class="expense-desc">${esc(e.desc)}</span>
+          </div>
+          <div class="expense-meta">
+            <span style="color:${c};font-weight:700;">${esc(e.payer)}</span>が支払い ／
+            ${e.split==='all'?'全員':e.targets.map(esc).join('・')}で割り勘
+            <span class="expense-per">（1人¥${perPerson.toLocaleString()}）</span>
+          </div>
+        </div>
+        <button class="icon-btn" onclick="removeExpense('${e.id}')">×</button>
+      </div>`;
+    }).join('');
+
+  // Groups
+  const gl = document.getElementById('group-list');
+  gl.innerHTML = state.groups.map(g => {
+    const gb = g.members.reduce((s,m)=>s+(balance[m]||0), 0);
+    const gbColor = gb >= 0 ? '#2BA8A0' : '#E05C5C';
+    const membersHtml = g.members.map(m => {
+      const c = col(m);
+      return `<div class="mini-tag" style="background:${c}14;border-color:${c}44;">
+        <div class="mini-dot" style="background:${c}"></div>
+        <span style="font-size:11px;color:${c};">${esc(m)}</span>
+      </div>`;
+    }).join('');
+    const detail = g.members.map(m => {
+      const b = balance[m]||0;
+      return `${esc(m)}: ${b>=0?'+':'-'}¥${Math.round(Math.abs(b)).toLocaleString()}`;
+    }).join(' / ');
+    return `<div class="card group-card">
+      <div class="group-body">
+        <div class="group-name">${esc(g.name)}</div>
+        <div class="group-members-row">${membersHtml}</div>
+        <div class="group-balance">合計：<span style="font-weight:700;color:${gbColor};">${gb>=0?'+':'-'}¥${Math.round(Math.abs(gb)).toLocaleString()}</span>
+        <span style="font-size:11px;color:#C4B9AC;margin-left:6px;">(${detail})</span></div>
+      </div>
+      <button class="icon-btn" onclick="removeGroup('${g.id}')">×</button>
+    </div>`;
+  }).join('');
+
+  // Settlement
+  const ss = document.getElementById('settlement-section');
+  if (state.expenses.length === 0) { ss.style.display = 'none'; return; }
+  ss.style.display = 'block';
+
+  const bl = document.getElementById('balance-list');
+  let balHtml = state.members.map(m => {
+    const b = balance[m]||0;
+    const inGroup = grouped.has(m);
+    const bColor = b >= 0 ? '#2BA8A0' : '#E05C5C';
+    const bLabel = b > 0.5 ? '受取' : b < -0.5 ? '支払い' : '±0';
+    return `<div class="balance-row${inGroup?' in-group':''}">
+      <div class="balance-dot" style="background:${col(m)}"></div>
+      <div class="balance-name">${esc(m)}${inGroup?'<span class="group-tag">（グループ）</span>':''}</div>
+      <div class="balance-amount" style="color:${bColor};">${b>=0?'+':'-'}¥${Math.round(Math.abs(b)).toLocaleString()}</div>
+      <div class="balance-label">${bLabel}</div>
+    </div>`;
+  }).join('');
+  balHtml += state.groups.map(g => {
+    const b = g.members.reduce((s,m)=>s+(balance[m]||0), 0);
+    const bColor = b >= 0 ? '#2BA8A0' : '#E05C5C';
+    const bLabel = b > 0.5 ? '受取' : b < -0.5 ? '支払い' : '±0';
+    return `<div class="balance-row">
+      <div style="font-size:13px;">👫</div>
+      <div class="balance-name" style="font-weight:700;color:#D4820A;">${esc(g.name)} <span style="font-size:11px;font-weight:400;color:#C4B9AC;">(${g.members.map(esc).join('・')})</span></div>
+      <div class="balance-amount" style="color:${bColor};">${b>=0?'+':'-'}¥${Math.round(Math.abs(b)).toLocaleString()}</div>
+      <div class="balance-label">${bLabel}</div>
+    </div>`;
+  }).join('');
+  bl.innerHTML = balHtml;
+
+  const ts = document.getElementById('txn-section');
+  if (!txns.length) {
+    ts.innerHTML = `<div class="all-settled">✓ 精算不要です</div>`;
+  } else {
+    const txHtml = txns.map(t => {
+      const fg = state.groups.find(g=>g.members.includes(t.from));
+      const tg = state.groups.find(g=>g.members.includes(t.to));
+      return `<div class="card txn-card">
+        <div>
+          <span class="txn-from" style="color:${col(t.from)};">${esc(t.from)}</span>
+          ${fg?`<span class="txn-group">(${esc(fg.name)})</span>`:''}
+        </div>
+        <span class="txn-arrow">→</span>
+        <div>
+          <span class="txn-to" style="color:${col(t.to)};">${esc(t.to)}</span>
+          ${tg?`<span class="txn-group">(${esc(tg.name)})</span>`:''}
+        </div>
+        <span class="txn-amount">¥${t.amt.toLocaleString()}</span>
+      </div>`;
+    }).join('');
+    ts.innerHTML = `<div class="txn-label">送金リスト</div>${txHtml}`;
+  }
+}
+
+// -- Actions --
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function addMember() {
+  const inp = document.getElementById('new-member');
+  const n = inp.value.trim();
+  if (n && !state.members.includes(n)) {
+    state.members.push(n);
+    inp.value = '';
+    saveData(); render();
+  }
+  inp.focus();
+}
+
+function removeMember(i) {
+  if (state.members.length <= 2) return;
+  const r = state.members[i];
+  state.members.splice(i, 1);
+  state.expenses = state.expenses.filter(e => e.payer !== r);
+  state.groups = state.groups
+    .map(g => ({...g, members: g.members.filter(m => m !== r)}))
+    .filter(g => g.members.length > 0);
+  saveData(); render();
+}
+
+function removeExpense(id) {
+  state.expenses = state.expenses.filter(e => e.id !== id);
+  saveData(); render();
+}
+
+function removeGroup(id) {
+  state.groups = state.groups.filter(g => g.id !== id);
+  saveData(); render();
+}
+
+// -- Expense Form --
+let expForm = { desc:'', amount:'', payer:0, split:'all', targets:[] };
+
+function openExpenseForm() {
+  expForm = { desc:'', amount:'', payer:0, split:'all', targets:[] };
+  renderExpenseForm();
+}
+
+function updateExpPreview() {
+  // previewだけ更新 — inputは触らない
+  expForm.amount = document.getElementById('exp-amount')?.value || '';
+  const perHead = expForm.split === 'all' ? state.members.length : expForm.targets.length;
+  const box = document.getElementById('exp-preview');
+  if (!box) return;
+  const a = parseFloat(expForm.amount);
+  box.textContent = (a > 0 && perHead > 0)
+    ? `1人あたり ¥${Math.round(a / perHead).toLocaleString()}`
+    : '';
+  box.style.display = (a > 0 && perHead > 0) ? 'block' : 'none';
+}
+
+function renderExpenseForm() {
+  const area = document.getElementById('expense-add-area');
+  const payerTags = state.members.map((m,i) => {
+    const c = col(m);
+    const on = expForm.payer === i;
+    return `<button class="tag-btn" onclick="setExpPayer(${i})" style="${on?`border-color:${c};background:${c}14;color:${c};font-weight:700;`:''}">
+      ${esc(m)}
+    </button>`;
+  }).join('');
+  const splitTags = ['all','custom'].map(s => {
+    const on = expForm.split === s;
+    return `<button class="tag-btn" onclick="setExpSplit('${s}')" style="${on?`border-color:#2BA8A0;background:#2BA8A014;color:#2BA8A0;font-weight:700;`:''}">
+      ${s==='all'?'全員で割り勘':'人を選ぶ'}
+    </button>`;
+  }).join('');
+  const customTargets = expForm.split === 'custom' ? `
+    <div class="tags" style="margin-top:8px;">
+      ${state.members.map(m => {
+        const c = col(m);
+        const on = expForm.targets.includes(m);
+        return `<button class="tag-btn" onclick="toggleExpTarget('${esc(m)}')" style="${on?`border-color:${c};background:${c}14;color:${c};font-weight:700;`:''}">
+          ${on?'✓ ':''}${esc(m)}
+        </button>`;
+      }).join('')}
+    </div>` : '';
+
+  const perHead = expForm.split === 'all' ? state.members.length : expForm.targets.length;
+  const a = parseFloat(expForm.amount);
+  const previewText = (a > 0 && perHead > 0) ? `1人あたり ¥${Math.round(a / perHead).toLocaleString()}` : '';
+  const previewStyle = previewText ? '' : 'display:none;';
+
+  area.innerHTML = `
+    <div class="form-card">
+      <div class="form-title">新しい支出</div>
+      <div class="form-field">
+        <div class="section-label">内容</div>
+        <input type="text" id="exp-desc" value="${esc(expForm.desc)}" placeholder="例：ランチ、タクシー…" oninput="expForm.desc=this.value" maxlength="40">
+      </div>
+      <div class="form-field">
+        <div class="section-label">金額 (¥)</div>
+        <input type="number" id="exp-amount" value="${expForm.amount}" placeholder="0" oninput="updateExpPreview()" inputmode="numeric">
+      </div>
+      <div class="form-field">
+        <div class="section-label">支払った人</div>
+        <div class="tags">${payerTags}</div>
+      </div>
+      <div class="form-field">
+        <div class="section-label">割り勘の対象</div>
+        <div class="tags">${splitTags}</div>
+        ${customTargets}
+      </div>
+      <div class="preview-box" id="exp-preview" style="${previewStyle}">${previewText}</div>
+      <div class="btn-row">
+        <button class="btn btn-teal" style="flex:1;" onclick="addExpense()">追加する</button>
+        <button class="btn btn-gray" style="flex:1;" onclick="closeExpenseForm()">キャンセル</button>
+      </div>
+    </div>`;
+}
+
+function setExpPayer(i) { expForm.payer = i; renderExpenseForm(); }
+function setExpSplit(s) { expForm.split = s; expForm.targets = []; renderExpenseForm(); }
+function toggleExpTarget(m) {
+  const idx = expForm.targets.indexOf(m);
+  if (idx >= 0) expForm.targets.splice(idx, 1);
+  else expForm.targets.push(m);
+  renderExpenseForm();
+}
+
+function addExpense() {
+  const desc = document.getElementById('exp-desc')?.value.trim() || expForm.desc.trim();
+  const amount = parseFloat(document.getElementById('exp-amount')?.value || expForm.amount);
+  if (!desc || isNaN(amount) || amount <= 0) { alert('内容と金額を入力してください'); return; }
+  const targets = expForm.split === 'all' ? [...state.members] : expForm.targets;
+  if (!targets.length) { alert('割り勘の対象を選んでください'); return; }
+  state.expenses.push({
+    id: Date.now().toString(),
+    desc, amount,
+    payer: state.members[expForm.payer],
+    split: expForm.split,
+    targets
+  });
+  closeExpenseForm();
+  saveData(); render();
+}
+
+function closeExpenseForm() {
+  document.getElementById('expense-add-area').innerHTML =
+    `<button class="add-dashed" onclick="openExpenseForm()">＋ 支出を追加</button>`;
+}
+
+// -- Group Form --
+let grpForm = { name:'', members:[] };
+
+function openGroupForm() {
+  grpForm = { name:'', members:[] };
+  renderGroupForm();
+}
+
+function renderGroupForm() {
+  const area = document.getElementById('group-add-area');
+  const memberTags = state.members.map(m => {
+    const c = col(m);
+    const on = grpForm.members.includes(m);
+    return `<button class="tag-btn" onclick="toggleGrpMember('${esc(m)}')" style="${on?`border-color:${c};background:${c}14;color:${c};font-weight:700;`:''}">
+      ${on?'✓ ':''}${esc(m)}
+    </button>`;
+  }).join('');
+  const { balance } = compute();
+  const preview = grpForm.members.length >= 2 ? `
+    <div class="preview-box" style="margin-top:8px;">
+      合計: <strong>¥${Math.round(Math.abs(grpForm.members.reduce((s,m)=>s+(balance[m]||0),0))).toLocaleString()}</strong>
+    </div>` : '';
+
+  area.innerHTML = `
+    <div class="form-card">
+      <div class="form-title">新しいグループ</div>
+      <div class="form-field">
+        <div class="section-label">グループ名</div>
+        <input type="text" id="grp-name" value="${esc(grpForm.name)}" placeholder="例：夫婦、カップル…" oninput="grpForm.name=this.value" maxlength="20">
+      </div>
+      <div class="form-field">
+        <div class="section-label">まとめるメンバー（2人以上）</div>
+        <div class="tags">${memberTags}</div>
+        ${preview}
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-amber" style="flex:1;" onclick="addGroup()">グループを作成</button>
+        <button class="btn btn-gray" style="flex:1;" onclick="closeGroupForm()">キャンセル</button>
+      </div>
+    </div>`;
+}
+
+function toggleGrpMember(m) {
+  const idx = grpForm.members.indexOf(m);
+  if (idx >= 0) grpForm.members.splice(idx, 1);
+  else grpForm.members.push(m);
+  renderGroupForm();
+}
+
+function addGroup() {
+  const name = document.getElementById('grp-name')?.value.trim() || grpForm.name.trim();
+  if (!name) { alert('グループ名を入力してください'); return; }
+  if (grpForm.members.length < 2) { alert('2人以上を選んでください'); return; }
+  state.groups.push({ id: Date.now().toString(), name, members: [...grpForm.members] });
+  closeGroupForm();
+  saveData(); render();
+}
+
+function closeGroupForm() {
+  document.getElementById('group-add-area').innerHTML =
+    `<button class="add-dashed" onclick="openGroupForm()">＋ グループを追加</button>`;
+}
+
+// Enter key on member input
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('new-member').addEventListener('keydown', e => {
+    if (e.key === 'Enter') addMember();
+  });
+  loadData();
+  render();
+});
+</script>
+</body>
+</html>
