@@ -259,7 +259,7 @@
 <script>
 const COLORS = ["#E05C5C","#2BA8A0","#3A8CC4","#4A9E6E","#D4820A","#8B5CF6","#0891B2","#B45309"];
 const STORE_KEY = "warikan-data-v2";
-let state = { members: ["キー", "友達A"], expenses: [], groups: [] };
+let state = { members: [], expenses: [], groups: [] };
 
 // Storage
 function loadData() {
@@ -328,11 +328,13 @@ function render() {
   document.getElementById('stat-members').textContent = state.members.length+'人';
   document.getElementById('expenses-label').textContent = `支出一覧 (${state.expenses.length}件)`;
 
-  document.getElementById('member-tags').innerHTML = state.members.map((m,i)=>{
+  document.getElementById('member-tags').innerHTML = state.members.length === 0
+    ? `<div style="color:#C4B9AC;font-size:13px;padding:4px 0 6px;">まずメンバーを追加してください</div>`
+    : state.members.map((m,i)=>{
     const c=col(m);
     return `<div class="member-tag" style="background:${c}14;border-color:${c}55;">
       <div class="member-dot" style="background:${c}"></div><span>${esc(m)}</span>
-      ${state.members.length>2?`<button class="remove-btn" onclick="removeMember(${i})">×</button>`:''}
+      <button class="remove-btn" onclick="removeMember(${i})">×</button>
     </div>`;
   }).join('');
 
@@ -414,7 +416,6 @@ function addMember() {
   inp.focus();
 }
 function removeMember(i) {
-  if(state.members.length<=2)return;
   const r=state.members[i]; state.members.splice(i,1);
   state.expenses=state.expenses.filter(e=>e.payer!==r);
   state.groups=state.groups.map(g=>({...g,members:g.members.filter(m=>m!==r)})).filter(g=>g.members.length>0);
@@ -423,15 +424,102 @@ function removeMember(i) {
 function removeExpense(id){ state.expenses=state.expenses.filter(e=>e.id!==id); saveData(); render(); }
 function removeGroup(id){ state.groups=state.groups.filter(g=>g.id!==id); saveData(); render(); }
 
-// Export Image — 長押しでアルバム保存
+// Export Image — 明細＋精算結果を1枚に合成して長押しでアルバム保存
 async function exportImage() {
   if(!state.expenses.length){ alert('支出を追加してから保存してください'); return; }
-  const card=document.getElementById('export-card');
+
+  // 画像用の隠しカードを一時生成
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:fixed;left:-9999px;top:0;width:360px;background:#F5F3EE;padding:20px;font-family:Hiragino Kaku Gothic ProN,BIZ UDPGothic,sans-serif;';
+
+  const { balance, txns } = compute();
+  const total = state.expenses.reduce((s,e)=>s+e.amount,0);
+  const grouped = new Set(state.groups.flatMap(g=>g.members));
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()}`;
+
+  // ヘッダー
+  wrap.innerHTML = `
+    <div style="background:#fff;border-radius:14px;padding:16px 16px 4px;margin-bottom:12px;border:1px solid #EDE9E2;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div>
+          <div style="font-size:8px;letter-spacing:3px;color:#A89B8A;text-transform:uppercase;font-weight:700;">Split</div>
+          <div style="font-size:18px;font-weight:800;color:#1a1a1a;">割り勘メモ</div>
+        </div>
+        <div style="font-size:11px;color:#C4B9AC;">${dateStr}</div>
+      </div>
+
+      <!-- 明細 -->
+      <div style="font-size:8px;letter-spacing:3px;color:#A89B8A;text-transform:uppercase;font-weight:700;margin-bottom:8px;">支出明細 (${state.expenses.length}件)</div>
+      ${state.expenses.map(e=>{
+        const c = COLORS[state.members.indexOf(e.payer) % COLORS.length] || '#888';
+        return `<div style="display:flex;align-items:flex-start;gap:8px;padding:9px 0;border-bottom:1px solid #F5F3EE;">
+          <div style="width:3px;align-self:stretch;background:${c};border-radius:2px;flex-shrink:0;"></div>
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;">
+              <span style="font-size:14px;font-weight:800;">¥${e.amount.toLocaleString()}</span>
+              <span style="font-size:12px;color:#888;">${esc(e.desc)}</span>
+            </div>
+            <div style="font-size:10px;color:#AAA;margin-top:2px;">
+              <span style="color:${c};font-weight:700;">${esc(e.payer)}</span>が支払い ／ ${e.split==='all'?'全員':e.targets.map(esc).join('・')}で割り勘
+              <span style="color:#C4B9AC;">（1人¥${Math.round(e.amount/e.targets.length).toLocaleString()}）</span>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+      <div style="text-align:right;font-size:11px;color:#A89B8A;padding:10px 0 6px;">合計支出 ¥${total.toLocaleString()} ／ ${state.members.length}人</div>
+    </div>
+
+    <!-- 精算結果 -->
+    <div style="background:#fff;border-radius:14px;padding:16px;border:1px solid #EDE9E2;">
+      <div style="font-size:8px;letter-spacing:3px;color:#A89B8A;text-transform:uppercase;font-weight:700;margin-bottom:10px;">精算結果</div>
+      ${state.members.map(m=>{
+        const b=balance[m]||0; const inG=grouped.has(m);
+        const bC=b>=0?'#2BA8A0':'#E05C5C';
+        const bL=b>0.5?'受取':b<-0.5?'支払い':'±0';
+        const mc=COLORS[state.members.indexOf(m)%COLORS.length];
+        return `<div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid #F5F3EE;opacity:${inG?0.4:1};">
+          <div style="width:8px;height:8px;border-radius:50%;background:${mc};flex-shrink:0;"></div>
+          <div style="flex:1;font-size:13px;">${esc(m)}${inG?'<span style="font-size:10px;color:#C4B9AC;margin-left:4px;">（グループ）</span>':''}</div>
+          <div style="font-size:13px;font-weight:800;color:${bC};">${b>=0?'+':'-'}¥${Math.round(Math.abs(b)).toLocaleString()}</div>
+          <div style="font-size:11px;color:#C4B9AC;min-width:40px;text-align:right;">${bL}</div>
+        </div>`;
+      }).join('')}
+      ${state.groups.map(g=>{
+        const b=g.members.reduce((s,m)=>s+(balance[m]||0),0);
+        const bC=b>=0?'#2BA8A0':'#E05C5C'; const bL=b>0.5?'受取':b<-0.5?'支払い':'±0';
+        return `<div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid #F5F3EE;">
+          <div style="font-size:13px;">👫</div>
+          <div style="flex:1;font-size:13px;font-weight:700;color:#D4820A;">${esc(g.name)} <span style="font-size:11px;font-weight:400;color:#C4B9AC;">(${g.members.map(esc).join('・')})</span></div>
+          <div style="font-size:13px;font-weight:800;color:${bC};">${b>=0?'+':'-'}¥${Math.round(Math.abs(b)).toLocaleString()}</div>
+          <div style="font-size:11px;color:#C4B9AC;min-width:40px;text-align:right;">${bL}</div>
+        </div>`;
+      }).join('')}
+      ${!txns.length
+        ? `<div style="text-align:center;color:#2BA8A0;font-size:13px;font-weight:700;padding:12px 0;">✓ 精算不要です</div>`
+        : `<div style="font-size:8px;color:#A89B8A;letter-spacing:2px;text-transform:uppercase;margin:12px 0 8px;font-weight:700;">送金リスト</div>
+          ${txns.map(t=>{
+            const fc=COLORS[state.members.indexOf(t.from)%COLORS.length];
+            const tc=COLORS[state.members.indexOf(t.to)%COLORS.length];
+            const fg=state.groups.find(g=>g.members.includes(t.from));
+            const tg=state.groups.find(g=>g.members.includes(t.to));
+            return `<div style="display:flex;align-items:center;gap:6px;padding:9px 12px;background:#F5F3EE;border-radius:9px;margin-bottom:5px;">
+              <span style="color:${fc};font-size:13px;font-weight:800;">${esc(t.from)}</span>${fg?`<span style="font-size:10px;color:#D4820A;">(${esc(fg.name)})</span>`:''}
+              <span style="color:#C4B9AC;">→</span>
+              <span style="color:${tc};font-size:13px;font-weight:800;">${esc(t.to)}</span>${tg?`<span style="font-size:10px;color:#D4820A;">(${esc(tg.name)})</span>`:''}
+              <span style="margin-left:auto;font-weight:800;font-size:14px;">¥${t.amt.toLocaleString()}</span>
+            </div>`;
+          }).join('')}`
+      }
+    </div>`;
+
+  document.body.appendChild(wrap);
   try {
-    const canvas=await html2canvas(card,{scale:3,backgroundColor:'#ffffff',useCORS:true,logging:false});
-    document.getElementById('img-preview').src=canvas.toDataURL('image/png');
+    const canvas = await html2canvas(wrap, { scale:3, backgroundColor:'#F5F3EE', useCORS:true, logging:false });
+    document.getElementById('img-preview').src = canvas.toDataURL('image/png');
     document.getElementById('img-modal').classList.add('open');
-  } catch(e){ alert('画像の生成に失敗しました'); }
+  } catch(e) { alert('画像の生成に失敗しました'); }
+  document.body.removeChild(wrap);
 }
 function closeImgModal(){
   document.getElementById('img-modal').classList.remove('open');
