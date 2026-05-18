@@ -6,7 +6,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#ffffff">
-<title>割り勘メモ</title>
+<title>割り勘</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   :root {
@@ -224,8 +225,21 @@
   <!-- Settlement -->
   <div class="section" id="settlement-section" style="display:none;">
     <div class="section-label">精算結果</div>
-    <div class="balance-list" id="balance-list"></div>
-    <div id="txn-section"></div>
+    <div id="export-card" style="background:#fff;border-radius:14px;padding:18px 16px;border:1px solid #EDE9E2;box-shadow:0 1px 4px rgba(0,0,0,0.07);">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div>
+          <div style="font-size:9px;letter-spacing:3px;color:#A89B8A;text-transform:uppercase;font-weight:700;">Split</div>
+          <div style="font-size:18px;font-weight:800;color:#1a1a1a;">割り勘</div>
+        </div>
+        <div id="export-date" style="font-size:11px;color:#C4B9AC;"></div>
+      </div>
+      <div class="balance-list" id="balance-list" style="margin-bottom:12px;"></div>
+      <div id="txn-section"></div>
+      <div id="export-total" style="margin-top:12px;padding-top:10px;border-top:1px solid #F5F3EE;font-size:11px;color:#A89B8A;text-align:right;"></div>
+    </div>
+    <button onclick="exportPNG()" style="width:100%;margin-top:12px;padding:14px;background:#2BA8A0;border:none;border-radius:12px;color:#fff;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;">
+      📷 画像として保存
+    </button>
   </div>
 </div>
 
@@ -399,6 +413,13 @@ function render() {
     </div>`;
   }).join('');
   bl.innerHTML = balHtml;
+
+  // export card meta
+  const now = new Date();
+  const dateEl = document.getElementById('export-date');
+  if (dateEl) dateEl.textContent = `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()}`;
+  const totalEl = document.getElementById('export-total');
+  if (totalEl) totalEl.textContent = `合計支出 ¥${total.toLocaleString()} ／ ${state.members.length}人`;
 
   const ts = document.getElementById('txn-section');
   if (!txns.length) {
@@ -633,6 +654,33 @@ function addGroup() {
 function closeGroupForm() {
   document.getElementById('group-add-area').innerHTML =
     `<button class="add-dashed" onclick="openGroupForm()">＋ グループを追加</button>`;
+}
+
+// -- Export PNG --
+async function exportPNG() {
+  const btn = document.querySelector('[onclick="exportPNG()"]');
+  const card = document.getElementById('export-card');
+  if (!card) return;
+  const orig = btn.innerHTML;
+  btn.innerHTML = '⏳ 生成中...';
+  btn.disabled = true;
+  try {
+    const canvas = await html2canvas(card, {
+      scale: 3,
+      backgroundColor: '#ffffff',
+      useCORS: true,
+      logging: false
+    });
+    const link = document.createElement('a');
+    const now = new Date();
+    link.download = `warikan_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  } catch(e) {
+    alert('画像の生成に失敗しました');
+  }
+  btn.innerHTML = orig;
+  btn.disabled = false;
 }
 
 // Enter key on member input
